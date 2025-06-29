@@ -31,6 +31,20 @@
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
 
+        .stats {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .stats h3 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+
         .upload-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -156,7 +170,7 @@
             flex-wrap: wrap;
         }
 
-        .download-btn, .view-btn {
+        .download-btn, .view-btn, .delete-btn {
             padding: 8px 12px;
             border: none;
             border-radius: 4px;
@@ -184,6 +198,16 @@
 
         .view-btn:hover {
             background: linear-gradient(45deg, #F57C00, #FF9800);
+            transform: translateY(-1px);
+        }
+
+        .delete-btn {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background: linear-gradient(45deg, #d32f2f, #f44336);
             transform: translateY(-1px);
         }
 
@@ -221,6 +245,22 @@
             color: #fff;
         }
 
+        .clear-all-btn {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 10px auto;
+            display: block;
+        }
+
+        .clear-all-btn:hover {
+            background: linear-gradient(45deg, #d32f2f, #f44336);
+        }
+
         @media (max-width: 768px) {
             .upload-grid {
                 grid-template-columns: 1fr;
@@ -235,6 +275,11 @@
 <body>
     <div class="container">
         <h1>📸 607記錄生活</h1>
+        <div class="stats">
+            <h3>📊 統計資訊</h3>
+            <p>總影片數：<span id="totalVideos">0</span> 部 | 今日上傳：<span id="todayVideos">0</span> 部</p>
+            <button class="clear-all-btn" onclick="clearAllData()">🗑️ 清除所有資料</button>
+        </div>
         <div class="upload-grid" id="uploadGrid"></div>
     </div>
 
@@ -258,8 +303,51 @@
             return slots;
         }
 
-        // 儲存所有時間段的影片記錄
-        const allVideos = {};
+        // 從 localStorage 載入所有影片資料
+        function loadAllVideos() {
+            try {
+                const saved = localStorage.getItem('607_life_videos');
+                return saved ? JSON.parse(saved) : {};
+            } catch (error) {
+                console.error('載入影片資料失敗:', error);
+                return {};
+            }
+        }
+
+        // 儲存所有影片資料到 localStorage
+        function saveAllVideos(videos) {
+            try {
+                localStorage.setItem('607_life_videos', JSON.stringify(videos));
+            } catch (error) {
+                console.error('儲存影片資料失敗:', error);
+            }
+        }
+
+        // 將檔案轉換為 base64 字串
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 將 base64 字串轉換回 Blob
+        function base64ToBlob(base64Data, contentType) {
+            const byteCharacters = atob(base64Data.split(',')[1]);
+            const byteNumbers = new Array(byteCharacters.length);
+            
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: contentType });
+        }
+
+        // 初始化影片資料
+        let allVideos = loadAllVideos();
 
         // 創建時間槽位的HTML
         function createTimeSlot(time, index) {
@@ -287,14 +375,21 @@
         }
 
         // 處理上傳
-        function handleUpload(event, time, index) {
+        async function handleUpload(event, time, index) {
             event.preventDefault();
             
             const nickname = document.getElementById(`nickname-${index}`).value;
             const videoFile = document.getElementById(`video-${index}`).files[0];
             const statusDiv = document.getElementById(`status-${index}`);
-            const videosDiv = document.getElementById(`videos-${index}`);
             const submitBtn = event.target.querySelector('.upload-btn');
+            
+            // 檢查檔案大小 (限制 50MB)
+            if (videoFile.size > 50 * 1024 * 1024) {
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '檔案太大！請選擇小於 50MB 的影片';
+                return;
+            }
             
             // 顯示上傳中狀態
             submitBtn.disabled = true;
@@ -303,55 +398,60 @@
             statusDiv.className = 'status';
             statusDiv.textContent = '正在處理上傳...';
             
-            // 模擬上傳過程（實際應用中這裡會是真實的上傳邏輯）
-            setTimeout(() => {
-                try {
-                    // 創建影片URL用於預覽和下載
-                    const videoUrl = URL.createObjectURL(videoFile);
-                    
-                    // 儲存影片記錄
-                    if (!allVideos[time]) {
-                        allVideos[time] = [];
-                    }
-                    
-                    const videoRecord = {
-                        id: Date.now(),
-                        nickname: nickname,
-                        fileName: videoFile.name,
-                        fileSize: (videoFile.size / (1024 * 1024)).toFixed(2) + ' MB',
-                        uploadTime: new Date().toLocaleString('zh-TW'),
-                        videoUrl: videoUrl,
-                        file: videoFile
-                    };
-                    
-                    allVideos[time].push(videoRecord);
-                    
-                    // 顯示成功狀態
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = '上傳成功！影片已公開分享';
-                    
-                    // 更新該時段的影片列表
-                    updateVideoList(time, index);
-                    
-                    // 重置表單
-                    event.target.reset();
-                    
-                } catch (error) {
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = '上傳失敗，請重試';
+            try {
+                // 將影片轉換為 base64
+                const base64Data = await fileToBase64(videoFile);
+                
+                // 儲存影片記錄
+                if (!allVideos[time]) {
+                    allVideos[time] = [];
                 }
                 
-                // 恢復按鈕狀態
-                submitBtn.disabled = false;
-                submitBtn.textContent = '上傳影片';
+                const videoRecord = {
+                    id: Date.now(),
+                    nickname: nickname,
+                    fileName: videoFile.name,
+                    fileSize: (videoFile.size / (1024 * 1024)).toFixed(2) + ' MB',
+                    uploadTime: new Date().toLocaleString('zh-TW'),
+                    uploadDate: new Date().toDateString(),
+                    base64Data: base64Data,
+                    contentType: videoFile.type
+                };
                 
-                // 3秒後隱藏狀態訊息
-                setTimeout(() => {
-                    if (statusDiv.className.includes('success')) {
-                        statusDiv.style.display = 'none';
-                    }
-                }, 3000);
-            }, 1500);
+                allVideos[time].push(videoRecord);
+                
+                // 儲存到 localStorage
+                saveAllVideos(allVideos);
+                
+                // 顯示成功狀態
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '上傳成功！影片已公開分享';
+                
+                // 更新該時段的影片列表
+                updateVideoList(time, index);
+                
+                // 更新統計資訊
+                updateStats();
+                
+                // 重置表單
+                event.target.reset();
+                
+            } catch (error) {
+                console.error('上傳失敗:', error);
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '上傳失敗，請重試';
+            }
+            
+            // 恢復按鈕狀態
+            submitBtn.disabled = false;
+            submitBtn.textContent = '上傳影片';
+            
+            // 3秒後隱藏狀態訊息
+            setTimeout(() => {
+                if (statusDiv.className.includes('success')) {
+                    statusDiv.style.display = 'none';
+                }
+            }, 3000);
         }
 
         // 更新影片列表顯示
@@ -362,61 +462,126 @@
             if (allVideos[time] && allVideos[time].length > 0) {
                 videosDiv.style.display = 'block';
                 
-                videoListDiv.innerHTML = allVideos[time].map(video => `
-                    <div class="video-item">
-                        <div class="video-meta">
-                            <strong>${video.nickname}</strong> • ${video.uploadTime}
+                videoListDiv.innerHTML = allVideos[time].map(video => {
+                    // 重新創建 blob URL
+                    const blob = base64ToBlob(video.base64Data, video.contentType);
+                    const videoUrl = URL.createObjectURL(blob);
+                    
+                    return `
+                        <div class="video-item">
+                            <div class="video-meta">
+                                <strong>${video.nickname}</strong> • ${video.uploadTime}
+                            </div>
+                            <div class="video-meta">
+                                📁 ${video.fileName} (${video.fileSize})
+                            </div>
+                            <video class="video-player" controls>
+                                <source src="${videoUrl}" type="${video.contentType}">
+                                您的瀏覽器不支援影片播放
+                            </video>
+                            <div class="video-controls">
+                                <a href="${videoUrl}" download="${video.fileName}" class="download-btn">
+                                    📥 下載影片
+                                </a>
+                                <button onclick="openFullscreen('${video.id}', '${time}')" class="view-btn">
+                                    🔍 全螢幕觀看
+                                </button>
+                                <button onclick="deleteVideo('${video.id}', '${time}')" class="delete-btn">
+                                    🗑️ 刪除
+                                </button>
+                            </div>
                         </div>
-                        <div class="video-meta">
-                            📁 ${video.fileName} (${video.fileSize})
-                        </div>
-                        <video class="video-player" controls>
-                            <source src="${video.videoUrl}" type="video/mp4">
-                            您的瀏覽器不支援影片播放
-                        </video>
-                        <div class="video-controls">
-                            <a href="${video.videoUrl}" download="${video.fileName}" class="download-btn">
-                                📥 下載影片
-                            </a>
-                            <button onclick="openFullscreen('${video.videoUrl}')" class="view-btn">
-                                🔍 全螢幕觀看
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
+            } else {
+                videosDiv.style.display = 'none';
+            }
+        }
+
+        // 刪除影片
+        function deleteVideo(videoId, time) {
+            if (confirm('確定要刪除這個影片嗎？')) {
+                allVideos[time] = allVideos[time].filter(video => video.id != videoId);
+                
+                if (allVideos[time].length === 0) {
+                    delete allVideos[time];
+                }
+                
+                saveAllVideos(allVideos);
+                
+                // 重新載入所有影片列表
+                loadAllVideoLists();
+                updateStats();
             }
         }
 
         // 全螢幕播放影片
-        function openFullscreen(videoUrl) {
-            const newWindow = window.open('', '_blank');
-            newWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>607記錄生活 - 影片播放</title>
-                    <style>
-                        body { 
-                            margin: 0; 
-                            background: #000; 
-                            display: flex; 
-                            justify-content: center; 
-                            align-items: center; 
-                            height: 100vh; 
-                        }
-                        video { 
-                            max-width: 100%; 
-                            max-height: 100%; 
-                        }
-                    </style>
-                </head>
-                <body>
-                    <video controls autoplay>
-                        <source src="${videoUrl}" type="video/mp4">
-                    </video>
-                </body>
-                </html>
-            `);
+        function openFullscreen(videoId, time) {
+            const video = allVideos[time].find(v => v.id == videoId);
+            if (video) {
+                const blob = base64ToBlob(video.base64Data, video.contentType);
+                const videoUrl = URL.createObjectURL(blob);
+                
+                const newWindow = window.open('', '_blank');
+                newWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>607記錄生活 - ${video.fileName}</title>
+                        <style>
+                            body { 
+                                margin: 0; 
+                                background: #000; 
+                                display: flex; 
+                                justify-content: center; 
+                                align-items: center; 
+                                height: 100vh; 
+                            }
+                            video { 
+                                max-width: 100%; 
+                                max-height: 100%; 
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <video controls autoplay>
+                            <source src="${videoUrl}" type="${video.contentType}">
+                        </video>
+                    </body>
+                    </html>
+                `);
+            }
+        }
+
+        // 更新統計資訊
+        function updateStats() {
+            const totalVideos = Object.values(allVideos).reduce((sum, videos) => sum + videos.length, 0);
+            const today = new Date().toDateString();
+            const todayVideos = Object.values(allVideos).reduce((sum, videos) => {
+                return sum + videos.filter(video => video.uploadDate === today).length;
+            }, 0);
+            
+            document.getElementById('totalVideos').textContent = totalVideos;
+            document.getElementById('todayVideos').textContent = todayVideos;
+        }
+
+        // 載入所有影片列表
+        function loadAllVideoLists() {
+            const timeSlots = generateTimeSlots();
+            timeSlots.forEach((time, index) => {
+                updateVideoList(time, index);
+            });
+        }
+
+        // 清除所有資料
+        function clearAllData() {
+            if (confirm('確定要清除所有影片資料嗎？這個動作無法復原！')) {
+                localStorage.removeItem('607_life_videos');
+                allVideos = {};
+                loadAllVideoLists();
+                updateStats();
+                alert('所有資料已清除！');
+            }
         }
 
         // 初始化頁面
@@ -427,6 +592,10 @@
             timeSlots.forEach((time, index) => {
                 uploadGrid.innerHTML += createTimeSlot(time, index);
             });
+            
+            // 載入已存在的影片
+            loadAllVideoLists();
+            updateStats();
         }
 
         // 頁面載入完成後初始化
