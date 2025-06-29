@@ -31,6 +31,26 @@
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
 
+        .notice {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid rgba(255, 193, 7, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .notice h3 {
+            color: #ffc107;
+            margin-bottom: 10px;
+        }
+
+        .notice p {
+            color: #fff;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
         .stats {
             text-align: center;
             margin-bottom: 20px;
@@ -261,6 +281,36 @@
             background: linear-gradient(45deg, #d32f2f, #f44336);
         }
 
+        .solution-box {
+            background: rgba(33, 150, 243, 0.1);
+            border: 1px solid rgba(33, 150, 243, 0.3);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .solution-box h3 {
+            color: #2196F3;
+            margin-bottom: 15px;
+        }
+
+        .solution-box p, .solution-box li {
+            color: #ccc;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .solution-box ul {
+            margin-left: 20px;
+        }
+
+        .solution-box code {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #4CAF50;
+        }
+
         @media (max-width: 768px) {
             .upload-grid {
                 grid-template-columns: 1fr;
@@ -275,15 +325,39 @@
 <body>
     <div class="container">
         <h1>📸 607記錄生活</h1>
-        <div class="stats">
-            <h3>📊 統計資訊</h3>
-            <p>總影片數：<span id="totalVideos">0</span> 部 | 今日上傳：<span id="todayVideos">0</span> 部</p>
-            <button class="clear-all-btn" onclick="clearAllData()">🗑️ 清除所有資料</button>
+        
+        <div class="notice">
+            <h3>⚠️ 重要提醒</h3>
+            <p>目前這個版本的影片資料只能在當前瀏覽器頁面中保存，重新整理後會消失。<br>
+            要實現真正的多人共享和資料持久化，需要建立後端伺服器。</p>
         </div>
+        
+        <div class="stats">
+            <h3>📊 目前狀態</h3>
+            <p>總影片數：<span id="totalVideos">0</span> 部 | 本次上傳：<span id="sessionVideos">0</span> 部</p>
+            <button class="clear-all-btn" onclick="clearAllData()">🗑️ 清除本次資料</button>
+        </div>
+        
         <div class="upload-grid" id="uploadGrid"></div>
+        
+        <div class="solution-box">
+            <h3>🔧 完整解決方案</h3>
+            <p>要實現真正的多人共享影片功能，您需要：</p>
+            <ul>
+                <li><strong>後端伺服器</strong>：使用 Node.js、Python Flask/Django、或 PHP</li>
+                <li><strong>資料庫</strong>：MySQL、PostgreSQL 或 MongoDB</li>
+                <li><strong>檔案儲存</strong>：本地儲存或雲端服務 (AWS S3、Google Cloud)</li>
+                <li><strong>網頁主機</strong>：VPS、共享主機或雲端平台</li>
+            </ul>
+            <p>簡單的解決方案是使用 <code>Firebase</code> 或 <code>Supabase</code> 這類 Backend-as-a-Service 平台，可以快速實現檔案上傳和資料庫功能。</p>
+        </div>
     </div>
 
     <script>
+        // 當前頁面的影片資料 (重新整理後會消失)
+        let allVideos = {};
+        let sessionUploadCount = 0;
+
         // 生成時間點 (4:00 到 21:30，每30分鐘)
         function generateTimeSlots() {
             const slots = [];
@@ -303,52 +377,6 @@
             return slots;
         }
 
-        // 從 localStorage 載入所有影片資料
-        function loadAllVideos() {
-            try {
-                const saved = localStorage.getItem('607_life_videos');
-                return saved ? JSON.parse(saved) : {};
-            } catch (error) {
-                console.error('載入影片資料失敗:', error);
-                return {};
-            }
-        }
-
-        // 儲存所有影片資料到 localStorage
-        function saveAllVideos(videos) {
-            try {
-                localStorage.setItem('607_life_videos', JSON.stringify(videos));
-            } catch (error) {
-                console.error('儲存影片資料失敗:', error);
-            }
-        }
-
-        // 將檔案轉換為 base64 字串
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
-
-        // 將 base64 字串轉換回 Blob
-        function base64ToBlob(base64Data, contentType) {
-            const byteCharacters = atob(base64Data.split(',')[1]);
-            const byteNumbers = new Array(byteCharacters.length);
-            
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            
-            const byteArray = new Uint8Array(byteNumbers);
-            return new Blob([byteArray], { type: contentType });
-        }
-
-        // 初始化影片資料
-        let allVideos = loadAllVideos();
-
         // 創建時間槽位的HTML
         function createTimeSlot(time, index) {
             return `
@@ -367,7 +395,7 @@
                     </form>
                     <div id="status-${index}" class="status" style="display: none;"></div>
                     <div id="videos-${index}" class="public-videos" style="display: none;">
-                        <h4>📹 公開影片</h4>
+                        <h4>📹 公開影片 (本次上傳)</h4>
                         <div id="video-list-${index}"></div>
                     </div>
                 </div>
@@ -383,24 +411,24 @@
             const statusDiv = document.getElementById(`status-${index}`);
             const submitBtn = event.target.querySelector('.upload-btn');
             
-            // 檢查檔案大小 (限制 50MB)
-            if (videoFile.size > 50 * 1024 * 1024) {
+            // 檢查檔案大小 (限制 100MB)
+            if (videoFile.size > 100 * 1024 * 1024) {
                 statusDiv.style.display = 'block';
                 statusDiv.className = 'status error';
-                statusDiv.textContent = '檔案太大！請選擇小於 50MB 的影片';
+                statusDiv.textContent = '檔案太大！請選擇小於 100MB 的影片';
                 return;
             }
             
             // 顯示上傳中狀態
             submitBtn.disabled = true;
-            submitBtn.textContent = '上傳中...';
+            submitBtn.textContent = '處理中...';
             statusDiv.style.display = 'block';
             statusDiv.className = 'status';
-            statusDiv.textContent = '正在處理上傳...';
+            statusDiv.textContent = '正在處理影片...';
             
             try {
-                // 將影片轉換為 base64
-                const base64Data = await fileToBase64(videoFile);
+                // 創建影片URL用於預覽
+                const videoUrl = URL.createObjectURL(videoFile);
                 
                 // 儲存影片記錄
                 if (!allVideos[time]) {
@@ -413,19 +441,16 @@
                     fileName: videoFile.name,
                     fileSize: (videoFile.size / (1024 * 1024)).toFixed(2) + ' MB',
                     uploadTime: new Date().toLocaleString('zh-TW'),
-                    uploadDate: new Date().toDateString(),
-                    base64Data: base64Data,
-                    contentType: videoFile.type
+                    videoUrl: videoUrl,
+                    file: videoFile
                 };
                 
                 allVideos[time].push(videoRecord);
-                
-                // 儲存到 localStorage
-                saveAllVideos(allVideos);
+                sessionUploadCount++;
                 
                 // 顯示成功狀態
                 statusDiv.className = 'status success';
-                statusDiv.textContent = '上傳成功！影片已公開分享';
+                statusDiv.textContent = '上傳成功！影片已在本頁面分享 (重新整理後會消失)';
                 
                 // 更新該時段的影片列表
                 updateVideoList(time, index);
@@ -439,19 +464,19 @@
             } catch (error) {
                 console.error('上傳失敗:', error);
                 statusDiv.className = 'status error';
-                statusDiv.textContent = '上傳失敗，請重試';
+                statusDiv.textContent = '處理失敗，請重試';
             }
             
             // 恢復按鈕狀態
             submitBtn.disabled = false;
             submitBtn.textContent = '上傳影片';
             
-            // 3秒後隱藏狀態訊息
+            // 5秒後隱藏狀態訊息
             setTimeout(() => {
                 if (statusDiv.className.includes('success')) {
                     statusDiv.style.display = 'none';
                 }
-            }, 3000);
+            }, 5000);
         }
 
         // 更新影片列表顯示
@@ -462,37 +487,31 @@
             if (allVideos[time] && allVideos[time].length > 0) {
                 videosDiv.style.display = 'block';
                 
-                videoListDiv.innerHTML = allVideos[time].map(video => {
-                    // 重新創建 blob URL
-                    const blob = base64ToBlob(video.base64Data, video.contentType);
-                    const videoUrl = URL.createObjectURL(blob);
-                    
-                    return `
-                        <div class="video-item">
-                            <div class="video-meta">
-                                <strong>${video.nickname}</strong> • ${video.uploadTime}
-                            </div>
-                            <div class="video-meta">
-                                📁 ${video.fileName} (${video.fileSize})
-                            </div>
-                            <video class="video-player" controls>
-                                <source src="${videoUrl}" type="${video.contentType}">
-                                您的瀏覽器不支援影片播放
-                            </video>
-                            <div class="video-controls">
-                                <a href="${videoUrl}" download="${video.fileName}" class="download-btn">
-                                    📥 下載影片
-                                </a>
-                                <button onclick="openFullscreen('${video.id}', '${time}')" class="view-btn">
-                                    🔍 全螢幕觀看
-                                </button>
-                                <button onclick="deleteVideo('${video.id}', '${time}')" class="delete-btn">
-                                    🗑️ 刪除
-                                </button>
-                            </div>
+                videoListDiv.innerHTML = allVideos[time].map(video => `
+                    <div class="video-item">
+                        <div class="video-meta">
+                            <strong>${video.nickname}</strong> • ${video.uploadTime}
                         </div>
-                    `;
-                }).join('');
+                        <div class="video-meta">
+                            📁 ${video.fileName} (${video.fileSize})
+                        </div>
+                        <video class="video-player" controls>
+                            <source src="${video.videoUrl}" type="video/mp4">
+                            您的瀏覽器不支援影片播放
+                        </video>
+                        <div class="video-controls">
+                            <a href="${video.videoUrl}" download="${video.fileName}" class="download-btn">
+                                📥 下載影片
+                            </a>
+                            <button onclick="openFullscreen('${video.videoUrl}')" class="view-btn">
+                                🔍 全螢幕觀看
+                            </button>
+                            <button onclick="deleteVideo('${video.id}', '${time}')" class="delete-btn">
+                                🗑️ 刪除
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
             } else {
                 videosDiv.style.display = 'none';
             }
@@ -507,8 +526,6 @@
                     delete allVideos[time];
                 }
                 
-                saveAllVideos(allVideos);
-                
                 // 重新載入所有影片列表
                 loadAllVideoLists();
                 updateStats();
@@ -516,53 +533,43 @@
         }
 
         // 全螢幕播放影片
-        function openFullscreen(videoId, time) {
-            const video = allVideos[time].find(v => v.id == videoId);
-            if (video) {
-                const blob = base64ToBlob(video.base64Data, video.contentType);
-                const videoUrl = URL.createObjectURL(blob);
-                
-                const newWindow = window.open('', '_blank');
-                newWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>607記錄生活 - ${video.fileName}</title>
-                        <style>
-                            body { 
-                                margin: 0; 
-                                background: #000; 
-                                display: flex; 
-                                justify-content: center; 
-                                align-items: center; 
-                                height: 100vh; 
-                            }
-                            video { 
-                                max-width: 100%; 
-                                max-height: 100%; 
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <video controls autoplay>
-                            <source src="${videoUrl}" type="${video.contentType}">
-                        </video>
-                    </body>
-                    </html>
-                `);
-            }
+        function openFullscreen(videoUrl) {
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>607記錄生活 - 影片播放</title>
+                    <style>
+                        body { 
+                            margin: 0; 
+                            background: #000; 
+                            display: flex; 
+                            justify-content: center; 
+                            align-items: center; 
+                            height: 100vh; 
+                        }
+                        video { 
+                            max-width: 100%; 
+                            max-height: 100%; 
+                        }
+                    </style>
+                </head>
+                <body>
+                    <video controls autoplay>
+                        <source src="${videoUrl}" type="video/mp4">
+                    </video>
+                </body>
+                </html>
+            `);
         }
 
         // 更新統計資訊
         function updateStats() {
             const totalVideos = Object.values(allVideos).reduce((sum, videos) => sum + videos.length, 0);
-            const today = new Date().toDateString();
-            const todayVideos = Object.values(allVideos).reduce((sum, videos) => {
-                return sum + videos.filter(video => video.uploadDate === today).length;
-            }, 0);
             
             document.getElementById('totalVideos').textContent = totalVideos;
-            document.getElementById('todayVideos').textContent = todayVideos;
+            document.getElementById('sessionVideos').textContent = sessionUploadCount;
         }
 
         // 載入所有影片列表
@@ -575,12 +582,17 @@
 
         // 清除所有資料
         function clearAllData() {
-            if (confirm('確定要清除所有影片資料嗎？這個動作無法復原！')) {
-                localStorage.removeItem('607_life_videos');
+            if (confirm('確定要清除本次上傳的所有影片嗎？')) {
                 allVideos = {};
+                sessionUploadCount = 0;
                 loadAllVideoLists();
                 updateStats();
-                alert('所有資料已清除！');
+                
+                // 隱藏所有影片區域
+                const videoDivs = document.querySelectorAll('.public-videos');
+                videoDivs.forEach(div => div.style.display = 'none');
+                
+                alert('本次資料已清除！');
             }
         }
 
@@ -593,8 +605,6 @@
                 uploadGrid.innerHTML += createTimeSlot(time, index);
             });
             
-            // 載入已存在的影片
-            loadAllVideoLists();
             updateStats();
         }
 
